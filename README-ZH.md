@@ -112,7 +112,7 @@ tail -f logs/app.log
 
 ## 服务器启动脚本
 
-构建完成后可以用项目内脚本启动服务：
+构建完成后可以用项目内脚本通过 PM2 后台启动服务：
 
 ```bash
 bash bin/start.sh
@@ -121,7 +121,13 @@ bash bin/start.sh
 脚本会自动切到项目根目录、创建日志目录，并执行：
 
 ```bash
-node dist/src/server.js
+pm2 start dist/src/server.js --name cnki-literature-review-api --update-env
+```
+
+默认 PM2 应用名为 `cnki-literature-review-api`，可以通过环境变量覆盖：
+
+```bash
+PM2_APP_NAME=cnki-api bash bin/start.sh
 ```
 
 如果希望直接执行脚本，可以先赋予执行权限：
@@ -129,6 +135,13 @@ node dist/src/server.js
 ```bash
 chmod +x bin/start.sh
 ./bin/start.sh
+```
+
+查看服务状态和日志：
+
+```bash
+pm2 status cnki-literature-review-api
+pm2 logs cnki-literature-review-api
 ```
 
 ## 综述模式

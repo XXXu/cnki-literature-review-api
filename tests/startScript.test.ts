@@ -10,6 +10,10 @@ describe("start.sh", () => {
     expect(script).toContain("cd \"$ROOT_DIR\"");
     expect(script).toContain("mkdir -p \"${LOG_FILE_DIR}\"");
     expect(script).toContain("dist/src/server.js");
-    expect(script).toContain("exec node dist/src/server.js");
+    expect(script).toContain("command -v pm2");
+    expect(script).toContain("pm2 start dist/src/server.js");
+    expect(script).toContain("--name \"${PM2_APP_NAME}\"");
+    expect(script).toContain("--update-env");
+    expect(script).not.toContain("exec node dist/src/server.js");
   });
 });
