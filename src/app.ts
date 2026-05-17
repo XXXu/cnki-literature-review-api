@@ -27,8 +27,11 @@ const paperSchema = z.object({
   fullText: z.string().optional()
 });
 
+const QUICK_REVIEW_MAX_PAPERS = 200;
+const DEEP_REVIEW_MAX_PAPERS = 50;
+
 const reviewRequestSchema = z.object({
-  papers: z.array(paperSchema).min(1).max(200)
+  papers: z.array(paperSchema).min(1)
 });
 
 function normalizeEmail(email: string) {
@@ -152,6 +155,9 @@ export function createApp(options: AppOptions = {}) {
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_REQUEST" });
     }
+    if (parsed.data.papers.length > QUICK_REVIEW_MAX_PAPERS) {
+      return reply.code(400).send({ error: "QUICK_REVIEW_PAPER_LIMIT_EXCEEDED" });
+    }
     if (user.quickReviewQuota < 1) {
       return reply.code(402).send({ error: "QUICK_REVIEW_QUOTA_EXHAUSTED" });
     }
@@ -191,6 +197,9 @@ export function createApp(options: AppOptions = {}) {
     const parsed = reviewRequestSchema.safeParse(request.body);
     if (!parsed.success || parsed.data.papers.some((paper) => !paper.fullText)) {
       return reply.code(400).send({ error: "INVALID_REQUEST" });
+    }
+    if (parsed.data.papers.length > DEEP_REVIEW_MAX_PAPERS) {
+      return reply.code(400).send({ error: "DEEP_REVIEW_PAPER_LIMIT_EXCEEDED" });
     }
     if (user.deepReviewQuota < 1) {
       return reply.code(402).send({ error: "DEEP_REVIEW_QUOTA_EXHAUSTED" });

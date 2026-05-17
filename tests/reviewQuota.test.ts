@@ -61,6 +61,22 @@ const deepPayload = {
   ]
 };
 
+function makeQuickPapers(count: number) {
+  return Array.from({ length: count }, (_, index) => ({
+    id: `P${String(index + 1).padStart(4, "0")}`,
+    title: `测试论文 ${index + 1}`,
+    abstract: "这是一段摘要。",
+    keywords: ["文献综述"]
+  }));
+}
+
+function makeDeepPapers(count: number) {
+  return makeQuickPapers(count).map((paper) => ({
+    ...paper,
+    fullText: "这是一段 PDF 全文。"
+  }));
+}
+
 describe("review quota routes", () => {
   it("requires auth before generating a quick review", async () => {
     const app = createApp({ prisma, jwtSecret: "test-secret" });
@@ -125,6 +141,23 @@ describe("review quota routes", () => {
     await app.close();
   });
 
+  it("rejects quick review generation above 200 papers", async () => {
+    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const token = await registerAndGetToken(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/review/quick",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { papers: makeQuickPapers(201) }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "QUICK_REVIEW_PAPER_LIMIT_EXCEEDED" });
+
+    await app.close();
+  });
+
   it("keeps quick review quota when report generation fails", async () => {
     const app = createApp({
       prisma,
@@ -181,6 +214,27 @@ describe("review quota routes", () => {
       report: expect.stringContaining("深度综述"),
       quota: { quickReviewQuota: 3, deepReviewQuota: 0 }
     });
+
+    await app.close();
+  });
+
+  it("rejects deep review generation above 50 papers", async () => {
+    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const token = await registerAndGetToken(app);
+    await prisma.user.update({
+      where: { email: "student@example.com" },
+      data: { deepReviewQuota: 1 }
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/review/deep",
+      headers: { authorization: `Bearer ${token}` },
+      payload: { papers: makeDeepPapers(51) }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "DEEP_REVIEW_PAPER_LIMIT_EXCEEDED" });
 
     await app.close();
   });
