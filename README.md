@@ -66,6 +66,23 @@ POST /review/quick
 POST /review/deep
 ```
 
+## Environment Variables
+
+Copy `.env.example` to `.env` for local development and fill in real secrets:
+
+```text
+NODE_ENV=development
+PORT=3000
+HOST=127.0.0.1
+DATABASE_URL="file:./dev.db"
+DEEPSEEK_API_KEY="your DeepSeek API key"
+DEEPSEEK_BASE_URL="https://api.deepseek.com"
+DEEPSEEK_MODEL="deepseek-chat"
+JWT_SECRET="a long random secret"
+```
+
+`DEEPSEEK_API_KEY` must stay on the backend. Never expose it to the browser extension or frontend build artifacts.
+
 ## Review Modes
 
 ### Quick Review

@@ -78,7 +78,14 @@ describe("review quota routes", () => {
   });
 
   it("deducts one quick review quota and returns a quick report", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createApp({
+      prisma,
+      jwtSecret: "test-secret",
+      reviewGenerator: {
+        generateQuickReview: async () => "快速综述：模型生成内容",
+        generateDeepReview: async () => "深度综述：模型生成内容"
+      }
+    });
     const token = await registerAndGetToken(app);
 
     const response = await app.inject({
@@ -119,7 +126,14 @@ describe("review quota routes", () => {
   });
 
   it("deducts one deep review quota and returns a deep report", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createApp({
+      prisma,
+      jwtSecret: "test-secret",
+      reviewGenerator: {
+        generateQuickReview: async () => "快速综述：模型生成内容",
+        generateDeepReview: async () => "深度综述：模型生成内容"
+      }
+    });
     const token = await registerAndGetToken(app);
     await prisma.user.update({
       where: { email: "student@example.com" },

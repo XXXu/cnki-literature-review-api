@@ -70,6 +70,23 @@ POST /review/quick
 POST /review/deep
 ```
 
+## 环境变量
+
+本地开发时从 `.env.example` 复制一份 `.env`，并填写真实密钥：
+
+```text
+NODE_ENV=development
+PORT=3000
+HOST=127.0.0.1
+DATABASE_URL="file:./dev.db"
+DEEPSEEK_API_KEY="你的 DeepSeek API Key"
+DEEPSEEK_BASE_URL="https://api.deepseek.com"
+DEEPSEEK_MODEL="deepseek-chat"
+JWT_SECRET="一串足够长的随机字符串"
+```
+
+`DEEPSEEK_API_KEY` 只能保存在后端环境变量中，不能写入浏览器插件或前端构建产物。
+
 ## 综述模式
 
 ### 快速综述

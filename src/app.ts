@@ -1,12 +1,16 @@
 import { Prisma, PrismaClient, type User } from "@prisma/client";
 import Fastify from "fastify";
 import { z } from "zod";
+import { createDeepSeekClient } from "./ai/deepseekClient.js";
 import { hashPassword, verifyPassword } from "./auth/password.js";
 import { signAuthToken, verifyAuthToken } from "./auth/token.js";
+import { loadConfig } from "./config/env.js";
+import { createReviewGenerator, type ReviewGenerator } from "./review/reviewGenerator.js";
 
 type AppOptions = {
   prisma?: PrismaClient;
   jwtSecret?: string;
+  reviewGenerator?: ReviewGenerator;
 };
 
 const credentialsSchema = z.object({
@@ -63,34 +67,16 @@ function quota(user: User) {
   };
 }
 
-function buildQuickReport(papers: Array<z.infer<typeof paperSchema>>) {
-  return [
-    "# 快速综述",
-    "",
-    `本次基于 ${papers.length} 篇文献的题录、摘要和关键词生成初步综述素材。`,
-    "",
-    "## 待分析文献",
-    "",
-    ...papers.map((paper) => `- ${paper.id} ${paper.title}`)
-  ].join("\n");
-}
-
-function buildDeepReport(papers: Array<z.infer<typeof paperSchema>>) {
-  return [
-    "# 深度综述",
-    "",
-    `本次基于 ${papers.length} 篇文献的题录、摘要、关键词和 PDF 全文生成深度综述素材。`,
-    "",
-    "## 全文文献",
-    "",
-    ...papers.map((paper) => `- ${paper.id} ${paper.title}`)
-  ].join("\n");
-}
-
 export function createApp(options: AppOptions = {}) {
   const app = Fastify({ logger: false });
+  const config = loadConfig();
   const prisma = options.prisma ?? new PrismaClient();
-  const jwtSecret = options.jwtSecret ?? process.env.JWT_SECRET ?? "development-secret";
+  const jwtSecret = options.jwtSecret ?? config.jwtSecret;
+  const reviewGenerator = options.reviewGenerator ?? createReviewGenerator(createDeepSeekClient({
+    apiKey: config.deepSeekApiKey,
+    baseUrl: config.deepSeekBaseUrl,
+    model: config.deepSeekModel
+  }));
 
   if (!options.prisma) {
     app.addHook("onClose", async () => {
@@ -175,7 +161,7 @@ export function createApp(options: AppOptions = {}) {
     });
 
     return {
-      report: buildQuickReport(parsed.data.papers),
+      report: await reviewGenerator.generateQuickReview(parsed.data.papers),
       quota: quota(updatedUser)
     };
   });
@@ -200,7 +186,7 @@ export function createApp(options: AppOptions = {}) {
     });
 
     return {
-      report: buildDeepReport(parsed.data.papers),
+      report: await reviewGenerator.generateDeepReview(parsed.data.papers),
       quota: quota(updatedUser)
     };
   });
