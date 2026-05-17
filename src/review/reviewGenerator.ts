@@ -48,7 +48,9 @@ export function createReviewGenerator(client: DeepSeekLikeClient): ReviewGenerat
             "输出应包含：主题分类、代表论文、反复出现的观点、可能的研究空白、建议下载全文精读的论文。",
             "所有判断尽量引用论文ID。",
             "",
-            papers.map(paperBrief).join("\n\n---\n\n")
+            "【论文材料开始】",
+            papers.map(paperBrief).join("\n\n---\n\n"),
+            "【论文材料结束】"
           ].join("\n")
         }
       ]);
@@ -67,7 +69,9 @@ export function createReviewGenerator(client: DeepSeekLikeClient): ReviewGenerat
             "输出应包含：单篇结构化分析、方法与数据对比、研究脉络、代表论文、共同不足、研究空白、可写入综述的素材段落。",
             "所有判断必须尽量引用论文ID。",
             "",
-            papers.map(paperFullTextBlock).join("\n\n---\n\n")
+            "【论文材料开始】",
+            papers.map(paperFullTextBlock).join("\n\n---\n\n"),
+            "【论文材料结束】"
           ].join("\n")
         }
       ]);
