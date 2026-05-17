@@ -25,6 +25,8 @@ describe("review generator", () => {
     expect(prompt).toContain("题录、摘要和关键词");
     expect(prompt).toContain("不包含论文全文");
     expect(prompt).toContain("不要推断论文的研究方法、论证过程、数据来源或材料细节");
+    expect(prompt).toContain("已有研究贡献");
+    expect(prompt).toContain("已有研究贡献只能根据题录和摘要归纳");
     expect(prompt).toContain("建议优先核对或精读的论文");
     expect(prompt).toContain(bilingualInstruction);
     expect(prompt).toContain("专业术语、理论名称、模型名称和变量名称应保留英文原文");
