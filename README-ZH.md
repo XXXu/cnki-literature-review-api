@@ -31,6 +31,10 @@
 - 部署目标：腾讯云服务器
 - 进程管理：MVP 阶段优先使用 PM2
 
+## Python 虚拟环境
+
+如果后续需要 Python 辅助脚本，统一使用项目内 .venv 虚拟环境，不使用系统 Python 环境。当前后端主体仍为 Node.js + TypeScript。
+
 ## MVP 后端职责
 
 后端需要提供：
@@ -127,3 +131,4 @@ C:\workspace\cnki-extension-ai-export
 ## 当前状态
 
 本仓库已初始化为后端 API 项目，目前仅完成项目说明和协作规则文档，尚未添加代码骨架。
+

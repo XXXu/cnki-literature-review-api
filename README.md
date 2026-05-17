@@ -27,6 +27,10 @@ The intended workflow is:
 - Deployment target: Tencent Cloud server
 - Process manager: PM2 for the MVP phase
 
+## Python Virtual Environment
+
+If Python helper scripts are added later, they should use a project-local .venv virtual environment. The backend service itself remains Node.js + TypeScript.
+
 ## MVP Responsibilities
 
 The backend should provide:
@@ -122,3 +126,4 @@ C:\workspace\cnki-extension-ai-export
 ## Current Status
 
 This repository has been initialized for backend planning. Implementation scaffolding has not been added yet.
+
