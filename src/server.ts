@@ -8,7 +8,7 @@ loadEnvFile();
 const prisma = new PrismaClient();
 await initDatabase(prisma);
 
-const app = createApp({ prisma });
+const app = createApp({ prisma, logger: true });
 const port = Number(process.env.PORT ?? 3000);
 const host = process.env.HOST ?? "127.0.0.1";
 

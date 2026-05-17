@@ -11,6 +11,7 @@ type AppOptions = {
   prisma?: PrismaClient;
   jwtSecret?: string;
   reviewGenerator?: ReviewGenerator;
+  logger?: boolean;
 };
 
 const credentialsSchema = z.object({
@@ -68,7 +69,7 @@ function quota(user: User) {
 }
 
 export function createApp(options: AppOptions = {}) {
-  const app = Fastify({ logger: false });
+  const app = Fastify({ logger: options.logger ?? false });
   const config = loadConfig();
   const prisma = options.prisma ?? new PrismaClient();
   const jwtSecret = options.jwtSecret ?? config.jwtSecret;
@@ -155,13 +156,28 @@ export function createApp(options: AppOptions = {}) {
       return reply.code(402).send({ error: "QUICK_REVIEW_QUOTA_EXHAUSTED" });
     }
 
+    request.log.info({
+      userId: user.id,
+      paperCount: parsed.data.papers.length
+    }, "quick_review_started");
+    let report: string;
+    try {
+      report = await reviewGenerator.generateQuickReview(parsed.data.papers);
+    } catch (error) {
+      request.log.error({ err: error, userId: user.id }, "quick_review_failed");
+      throw error;
+    }
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { quickReviewQuota: { decrement: 1 } }
     });
+    request.log.info({
+      userId: user.id,
+      quickReviewQuota: updatedUser.quickReviewQuota
+    }, "quick_review_completed");
 
     return {
-      report: await reviewGenerator.generateQuickReview(parsed.data.papers),
+      report,
       quota: quota(updatedUser)
     };
   });
@@ -180,13 +196,28 @@ export function createApp(options: AppOptions = {}) {
       return reply.code(402).send({ error: "DEEP_REVIEW_QUOTA_EXHAUSTED" });
     }
 
+    request.log.info({
+      userId: user.id,
+      paperCount: parsed.data.papers.length
+    }, "deep_review_started");
+    let report: string;
+    try {
+      report = await reviewGenerator.generateDeepReview(parsed.data.papers);
+    } catch (error) {
+      request.log.error({ err: error, userId: user.id }, "deep_review_failed");
+      throw error;
+    }
     const updatedUser = await prisma.user.update({
       where: { id: user.id },
       data: { deepReviewQuota: { decrement: 1 } }
     });
+    request.log.info({
+      userId: user.id,
+      deepReviewQuota: updatedUser.deepReviewQuota
+    }, "deep_review_completed");
 
     return {
-      report: await reviewGenerator.generateDeepReview(parsed.data.papers),
+      report,
       quota: quota(updatedUser)
     };
   });

@@ -125,6 +125,35 @@ describe("review quota routes", () => {
     await app.close();
   });
 
+  it("keeps quick review quota when report generation fails", async () => {
+    const app = createApp({
+      prisma,
+      jwtSecret: "test-secret",
+      reviewGenerator: {
+        generateQuickReview: async () => {
+          throw new Error("deepseek unavailable");
+        },
+        generateDeepReview: async () => "deep review"
+      }
+    });
+    const token = await registerAndGetToken(app);
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/review/quick",
+      headers: { authorization: `Bearer ${token}` },
+      payload: quickPayload
+    });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { email: "student@example.com" }
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(user.quickReviewQuota).toBe(3);
+
+    await app.close();
+  });
+
   it("deducts one deep review quota and returns a deep report", async () => {
     const app = createApp({
       prisma,
@@ -169,6 +198,39 @@ describe("review quota routes", () => {
 
     expect(response.statusCode).toBe(402);
     expect(response.json()).toEqual({ error: "DEEP_REVIEW_QUOTA_EXHAUSTED" });
+
+    await app.close();
+  });
+
+  it("keeps deep review quota when report generation fails", async () => {
+    const app = createApp({
+      prisma,
+      jwtSecret: "test-secret",
+      reviewGenerator: {
+        generateQuickReview: async () => "quick review",
+        generateDeepReview: async () => {
+          throw new Error("deepseek unavailable");
+        }
+      }
+    });
+    const token = await registerAndGetToken(app);
+    await prisma.user.update({
+      where: { email: "student@example.com" },
+      data: { deepReviewQuota: 1 }
+    });
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/review/deep",
+      headers: { authorization: `Bearer ${token}` },
+      payload: deepPayload
+    });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { email: "student@example.com" }
+    });
+
+    expect(response.statusCode).toBe(500);
+    expect(user.deepReviewQuota).toBe(1);
 
     await app.close();
   });
