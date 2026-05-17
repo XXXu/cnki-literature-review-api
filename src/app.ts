@@ -1,5 +1,5 @@
 import { Prisma, PrismaClient, type User } from "@prisma/client";
-import Fastify from "fastify";
+import Fastify, { type FastifyServerOptions } from "fastify";
 import { z } from "zod";
 import { createDeepSeekClient } from "./ai/deepseekClient.js";
 import { hashPassword, verifyPassword } from "./auth/password.js";
@@ -11,7 +11,7 @@ type AppOptions = {
   prisma?: PrismaClient;
   jwtSecret?: string;
   reviewGenerator?: ReviewGenerator;
-  logger?: boolean;
+  logger?: FastifyServerOptions["logger"];
 };
 
 const credentialsSchema = z.object({

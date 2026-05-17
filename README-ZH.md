@@ -83,9 +83,32 @@ DEEPSEEK_API_KEY="你的 DeepSeek API Key"
 DEEPSEEK_BASE_URL="https://api.deepseek.com"
 DEEPSEEK_MODEL="deepseek-chat"
 JWT_SECRET="一串足够长的随机字符串"
+LOG_LEVEL=info
+LOG_FILE=logs/app.log
 ```
 
 `DEEPSEEK_API_KEY` 只能保存在后端环境变量中，不能写入浏览器插件或前端构建产物。
+
+## 日志
+
+服务默认把 Fastify 请求日志和业务日志写入：
+
+```text
+logs/app.log
+```
+
+可以通过 `.env` 修改日志级别和文件路径：
+
+```env
+LOG_LEVEL=info
+LOG_FILE=logs/app.log
+```
+
+服务器上查看实时日志：
+
+```bash
+tail -f logs/app.log
+```
 
 ## 综述模式
 
