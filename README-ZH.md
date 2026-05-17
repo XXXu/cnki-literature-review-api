@@ -110,6 +110,27 @@ LOG_FILE=logs/app.log
 tail -f logs/app.log
 ```
 
+## 服务器启动脚本
+
+构建完成后可以用项目内脚本启动服务：
+
+```bash
+bash bin/start.sh
+```
+
+脚本会自动切到项目根目录、创建日志目录，并执行：
+
+```bash
+node dist/src/server.js
+```
+
+如果希望直接执行脚本，可以先赋予执行权限：
+
+```bash
+chmod +x bin/start.sh
+./bin/start.sh
+```
+
 ## 综述模式
 
 ### 快速综述
