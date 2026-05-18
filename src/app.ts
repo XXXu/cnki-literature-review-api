@@ -29,6 +29,8 @@ const paperSchema = z.object({
 
 const QUICK_REVIEW_MAX_PAPERS = 200;
 const DEEP_REVIEW_MAX_PAPERS = 50;
+const STARTER_QUICK_REVIEW_QUOTA = 3;
+const STARTER_DEEP_REVIEW_QUOTA = 1;
 
 const reviewRequestSchema = z.object({
   papers: z.array(paperSchema).min(1)
@@ -104,7 +106,12 @@ export function createApp(options: AppOptions = {}) {
 
     try {
       const user = await prisma.user.create({
-        data: { email, passwordHash }
+        data: {
+          email,
+          passwordHash,
+          quickReviewQuota: STARTER_QUICK_REVIEW_QUOTA,
+          deepReviewQuota: STARTER_DEEP_REVIEW_QUOTA
+        }
       });
       return reply.code(201).send({
         token: signAuthToken({ userId: user.id }, jwtSecret),
