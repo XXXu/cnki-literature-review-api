@@ -23,6 +23,6 @@ describe("initDatabase", () => {
     });
 
     expect(user.quickReviewQuota).toBe(3);
-    expect(user.deepReviewQuota).toBe(0);
+    expect(user.deepReviewQuota).toBe(1);
   });
 });

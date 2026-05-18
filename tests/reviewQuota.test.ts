@@ -14,7 +14,7 @@ beforeAll(async () => {
       "email" TEXT NOT NULL UNIQUE,
       "passwordHash" TEXT NOT NULL,
       "quickReviewQuota" INTEGER NOT NULL DEFAULT 3,
-      "deepReviewQuota" INTEGER NOT NULL DEFAULT 0,
+      "deepReviewQuota" INTEGER NOT NULL DEFAULT 1,
       "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" DATETIME NOT NULL
     )
@@ -114,7 +114,7 @@ describe("review quota routes", () => {
     expect(response.statusCode).toBe(200);
     expect(response.json()).toMatchObject({
       report: expect.stringContaining("快速综述"),
-      quota: { quickReviewQuota: 2, deepReviewQuota: 0 }
+      quota: { quickReviewQuota: 2, deepReviewQuota: 1 }
     });
 
     await app.close();
@@ -242,6 +242,10 @@ describe("review quota routes", () => {
   it("rejects deep review generation when quota is exhausted", async () => {
     const app = createApp({ prisma, jwtSecret: "test-secret" });
     const token = await registerAndGetToken(app);
+    await prisma.user.update({
+      where: { email: "student@example.com" },
+      data: { deepReviewQuota: 0 }
+    });
 
     const response = await app.inject({
       method: "POST",
