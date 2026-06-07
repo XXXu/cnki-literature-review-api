@@ -7,6 +7,7 @@ process.env.DATABASE_URL = "file:./test-auth.db";
 const prisma = new PrismaClient();
 
 beforeAll(async () => {
+  await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "EmailVerificationCode"`);
   await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "User"`);
   await prisma.$executeRawUnsafe(`
     CREATE TABLE "User" (
@@ -19,9 +20,20 @@ beforeAll(async () => {
       "updatedAt" DATETIME NOT NULL
     )
   `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE "EmailVerificationCode" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "email" TEXT NOT NULL,
+      "codeHash" TEXT NOT NULL,
+      "expiresAt" DATETIME NOT NULL,
+      "consumedAt" DATETIME,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 });
 
 beforeEach(async () => {
+  await prisma.$executeRawUnsafe(`DELETE FROM "EmailVerificationCode"`);
   await prisma.user.deleteMany();
 });
 
@@ -30,13 +42,62 @@ afterAll(async () => {
 });
 
 describe("auth routes", () => {
-  it("registers a user and returns the starter quota", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+  const createAuthApp = () => createApp({
+    prisma,
+    jwtSecret: "test-secret",
+    emailSender: {
+      sendVerificationCode: async () => undefined
+    },
+    verificationCodeGenerator: () => "123456"
+  });
+
+  async function requestVerificationCode(app: ReturnType<typeof createApp>, email = "student@example.com") {
+    return app.inject({
+      method: "POST",
+      url: "/auth/verification-code",
+      payload: { email }
+    });
+  }
+
+  it("sends a verification code before registration", async () => {
+    const app = createAuthApp();
+
+    const response = await requestVerificationCode(app, "Student@Example.com");
+    const rows = await prisma.$queryRaw<Array<{ email: string }>>`
+      SELECT "email" FROM "EmailVerificationCode"
+    `;
+
+    expect(response.statusCode).toBe(200);
+    expect(response.json()).toEqual({ ok: true });
+    expect(rows).toEqual([{ email: "student@example.com" }]);
+
+    await app.close();
+  });
+
+  it("rejects registration without a valid verification code", async () => {
+    const app = createAuthApp();
 
     const response = await app.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "Student@Example.com", password: "password123" }
+      payload: { email: "student@example.com", password: "password123", verificationCode: "000000" }
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toEqual({ error: "INVALID_VERIFICATION_CODE" });
+
+    await app.close();
+  });
+
+  it("registers a user and returns the starter quota", async () => {
+    const app = createAuthApp();
+
+    await requestVerificationCode(app, "Student@Example.com");
+
+    const response = await app.inject({
+      method: "POST",
+      url: "/auth/register",
+      payload: { email: "Student@Example.com", password: "password123", verificationCode: "123456" }
     });
 
     expect(response.statusCode).toBe(201);
@@ -53,17 +114,19 @@ describe("auth routes", () => {
   });
 
   it("rejects duplicate email registration", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createAuthApp();
 
+    await requestVerificationCode(app);
     await app.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "student@example.com", password: "password123" }
+      payload: { email: "student@example.com", password: "password123", verificationCode: "123456" }
     });
+    await requestVerificationCode(app);
     const response = await app.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "student@example.com", password: "password123" }
+      payload: { email: "student@example.com", password: "password123", verificationCode: "123456" }
     });
 
     expect(response.statusCode).toBe(409);
@@ -73,12 +136,13 @@ describe("auth routes", () => {
   });
 
   it("logs in with valid credentials", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createAuthApp();
 
+    await requestVerificationCode(app);
     await app.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "student@example.com", password: "password123" }
+      payload: { email: "student@example.com", password: "password123", verificationCode: "123456" }
     });
     const response = await app.inject({
       method: "POST",
@@ -96,12 +160,13 @@ describe("auth routes", () => {
   });
 
   it("rejects invalid login credentials", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createAuthApp();
 
+    await requestVerificationCode(app);
     await app.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "student@example.com", password: "password123" }
+      payload: { email: "student@example.com", password: "password123", verificationCode: "123456" }
     });
     const response = await app.inject({
       method: "POST",
@@ -116,12 +181,13 @@ describe("auth routes", () => {
   });
 
   it("returns the current user for a valid bearer token", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createAuthApp();
 
+    await requestVerificationCode(app);
     const registerResponse = await app.inject({
       method: "POST",
       url: "/auth/register",
-      payload: { email: "student@example.com", password: "password123" }
+      payload: { email: "student@example.com", password: "password123", verificationCode: "123456" }
     });
     const { token } = registerResponse.json() as { token: string };
     const response = await app.inject({

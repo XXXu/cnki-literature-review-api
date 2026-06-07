@@ -12,6 +12,7 @@ afterAll(async () => {
 
 describe("initDatabase", () => {
   it("creates the user table needed by auth routes", async () => {
+    await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "EmailVerificationCode"`);
     await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "User"`);
 
     await initDatabase(prisma);
@@ -24,5 +25,10 @@ describe("initDatabase", () => {
 
     expect(user.quickReviewQuota).toBe(3);
     expect(user.deepReviewQuota).toBe(1);
+
+    const verificationRows = await prisma.$queryRaw<Array<{ name: string }>>`
+      SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'EmailVerificationCode'
+    `;
+    expect(verificationRows).toHaveLength(1);
   });
 });

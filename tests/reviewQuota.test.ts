@@ -7,6 +7,7 @@ process.env.DATABASE_URL = "file:./test-review-quota.db";
 const prisma = new PrismaClient();
 
 beforeAll(async () => {
+  await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "EmailVerificationCode"`);
   await prisma.$executeRawUnsafe(`DROP TABLE IF EXISTS "User"`);
   await prisma.$executeRawUnsafe(`
     CREATE TABLE "User" (
@@ -19,9 +20,20 @@ beforeAll(async () => {
       "updatedAt" DATETIME NOT NULL
     )
   `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE "EmailVerificationCode" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "email" TEXT NOT NULL,
+      "codeHash" TEXT NOT NULL,
+      "expiresAt" DATETIME NOT NULL,
+      "consumedAt" DATETIME,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 });
 
 beforeEach(async () => {
+  await prisma.$executeRawUnsafe(`DELETE FROM "EmailVerificationCode"`);
   await prisma.user.deleteMany();
 });
 
@@ -30,13 +42,25 @@ afterAll(async () => {
 });
 
 async function registerAndGetToken(app: ReturnType<typeof createApp>) {
+  await app.inject({
+    method: "POST",
+    url: "/auth/verification-code",
+    payload: { email: "student@example.com" }
+  });
   const response = await app.inject({
     method: "POST",
     url: "/auth/register",
-    payload: { email: "student@example.com", password: "password123" }
+    payload: { email: "student@example.com", password: "password123", verificationCode: "123456" }
   });
   return (response.json() as { token: string }).token;
 }
+
+const authOptions = {
+  emailSender: {
+    sendVerificationCode: async () => undefined
+  },
+  verificationCodeGenerator: () => "123456"
+};
 
 const quickPayload = {
   papers: [
@@ -79,7 +103,7 @@ function makeDeepPapers(count: number) {
 
 describe("review quota routes", () => {
   it("requires auth before generating a quick review", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createApp({ prisma, jwtSecret: "test-secret", ...authOptions });
 
     const response = await app.inject({
       method: "POST",
@@ -97,6 +121,7 @@ describe("review quota routes", () => {
     const app = createApp({
       prisma,
       jwtSecret: "test-secret",
+      ...authOptions,
       reviewGenerator: {
         generateQuickReview: async () => "快速综述：模型生成内容",
         generateDeepReview: async () => "深度综述：模型生成内容"
@@ -121,7 +146,7 @@ describe("review quota routes", () => {
   });
 
   it("rejects quick review generation when quota is exhausted", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createApp({ prisma, jwtSecret: "test-secret", ...authOptions });
     const token = await registerAndGetToken(app);
     await prisma.user.update({
       where: { email: "student@example.com" },
@@ -142,7 +167,7 @@ describe("review quota routes", () => {
   });
 
   it("rejects quick review generation above 200 papers", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createApp({ prisma, jwtSecret: "test-secret", ...authOptions });
     const token = await registerAndGetToken(app);
 
     const response = await app.inject({
@@ -162,6 +187,7 @@ describe("review quota routes", () => {
     const app = createApp({
       prisma,
       jwtSecret: "test-secret",
+      ...authOptions,
       reviewGenerator: {
         generateQuickReview: async () => {
           throw new Error("deepseek unavailable");
@@ -191,6 +217,7 @@ describe("review quota routes", () => {
     const app = createApp({
       prisma,
       jwtSecret: "test-secret",
+      ...authOptions,
       reviewGenerator: {
         generateQuickReview: async () => "快速综述：模型生成内容",
         generateDeepReview: async () => "深度综述：模型生成内容"
@@ -219,7 +246,7 @@ describe("review quota routes", () => {
   });
 
   it("rejects deep review generation above 50 papers", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createApp({ prisma, jwtSecret: "test-secret", ...authOptions });
     const token = await registerAndGetToken(app);
     await prisma.user.update({
       where: { email: "student@example.com" },
@@ -240,7 +267,7 @@ describe("review quota routes", () => {
   });
 
   it("rejects deep review generation when quota is exhausted", async () => {
-    const app = createApp({ prisma, jwtSecret: "test-secret" });
+    const app = createApp({ prisma, jwtSecret: "test-secret", ...authOptions });
     const token = await registerAndGetToken(app);
     await prisma.user.update({
       where: { email: "student@example.com" },
@@ -264,6 +291,7 @@ describe("review quota routes", () => {
     const app = createApp({
       prisma,
       jwtSecret: "test-secret",
+      ...authOptions,
       reviewGenerator: {
         generateQuickReview: async () => "quick review",
         generateDeepReview: async () => {

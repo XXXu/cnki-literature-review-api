@@ -79,9 +79,20 @@ DEEPSEEK_API_KEY="your DeepSeek API key"
 DEEPSEEK_BASE_URL="https://api.deepseek.com"
 DEEPSEEK_MODEL="deepseek-chat"
 JWT_SECRET="a long random secret"
+LOG_LEVEL=info
+LOG_FILE=logs/app.log
+SMTP_HOST=""
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=""
+SMTP_PASS=""
+SMTP_FROM=""
+SMTP_FROM_NAME="CNKI Literature Review Assistant"
 ```
 
 `DEEPSEEK_API_KEY` must stay on the backend. Never expose it to the browser extension or frontend build artifacts.
+
+Registration requires an email verification code. In production, configure `SMTP_HOST` and `SMTP_FROM`; if the mail provider requires authentication, also configure `SMTP_USER` and `SMTP_PASS`. When the email sender is not configured, the API refuses to send verification codes and new users cannot bypass ownership verification.
 
 ## Review Modes
 

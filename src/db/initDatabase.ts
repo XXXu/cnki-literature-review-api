@@ -12,4 +12,18 @@ export async function initDatabase(prisma: PrismaClient) {
       "updatedAt" DATETIME NOT NULL
     )
   `);
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "EmailVerificationCode" (
+      "id" TEXT NOT NULL PRIMARY KEY,
+      "email" TEXT NOT NULL,
+      "codeHash" TEXT NOT NULL,
+      "expiresAt" DATETIME NOT NULL,
+      "consumedAt" DATETIME,
+      "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await prisma.$executeRawUnsafe(`
+    CREATE INDEX IF NOT EXISTS "EmailVerificationCode_email_createdAt_idx"
+    ON "EmailVerificationCode" ("email", "createdAt")
+  `);
 }

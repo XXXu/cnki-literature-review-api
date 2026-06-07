@@ -85,9 +85,18 @@ DEEPSEEK_MODEL="deepseek-chat"
 JWT_SECRET="一串足够长的随机字符串"
 LOG_LEVEL=info
 LOG_FILE=logs/app.log
+SMTP_HOST=""
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=""
+SMTP_PASS=""
+SMTP_FROM=""
+SMTP_FROM_NAME="知网文献综述助手"
 ```
 
 `DEEPSEEK_API_KEY` 只能保存在后端环境变量中，不能写入浏览器插件或前端构建产物。
+
+注册功能需要邮件验证码。服务器部署时必须配置 `SMTP_HOST`、`SMTP_FROM`，如果邮箱服务需要登录，还要配置 `SMTP_USER` 和 `SMTP_PASS`。未配置邮件服务时，后端会拒绝发送验证码，也就不会允许新用户绕过邮箱验证直接注册。
 
 ## 日志
 

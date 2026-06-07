@@ -2,21 +2,44 @@ import { Prisma, PrismaClient, type User } from "@prisma/client";
 import Fastify, { type FastifyServerOptions } from "fastify";
 import { z } from "zod";
 import { createDeepSeekClient } from "./ai/deepseekClient.js";
+import {
+  cleanupExpiredVerificationCodes,
+  consumeVerificationCode,
+  DEFAULT_VERIFICATION_CODE_TTL_MS,
+  findLatestVerificationCode,
+  generateVerificationCode,
+  hashVerificationCode,
+  saveVerificationCode,
+  type VerificationEmailSender
+} from "./auth/emailVerification.js";
 import { hashPassword, verifyPassword } from "./auth/password.js";
 import { signAuthToken, verifyAuthToken } from "./auth/token.js";
 import { loadConfig } from "./config/env.js";
+import { createSmtpEmailSender } from "./mail/smtpEmailSender.js";
 import { createReviewGenerator, type ReviewGenerator } from "./review/reviewGenerator.js";
 
 type AppOptions = {
   prisma?: PrismaClient;
   jwtSecret?: string;
   reviewGenerator?: ReviewGenerator;
+  emailSender?: VerificationEmailSender | null;
+  verificationCodeGenerator?: () => string;
+  verificationCodeTtlMs?: number;
+  now?: () => Date;
   logger?: FastifyServerOptions["logger"];
 };
+
+const emailSchema = z.object({
+  email: z.string().email()
+});
 
 const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8).max(128)
+});
+
+const registrationSchema = credentialsSchema.extend({
+  verificationCode: z.string().regex(/^\d{6}$/)
 });
 
 const paperSchema = z.object({
@@ -73,11 +96,28 @@ function quota(user: User) {
   };
 }
 
+function createConfiguredEmailSender(config: ReturnType<typeof loadConfig>) {
+  if (!config.smtpHost || !config.smtpFrom) return null;
+  return createSmtpEmailSender({
+    host: config.smtpHost,
+    port: config.smtpPort,
+    secure: config.smtpSecure,
+    user: config.smtpUser || undefined,
+    pass: config.smtpPass || undefined,
+    from: config.smtpFrom,
+    fromName: config.smtpFromName
+  });
+}
+
 export function createApp(options: AppOptions = {}) {
   const app = Fastify({ logger: options.logger ?? false });
   const config = loadConfig();
   const prisma = options.prisma ?? new PrismaClient();
   const jwtSecret = options.jwtSecret ?? config.jwtSecret;
+  const emailSender = options.emailSender ?? createConfiguredEmailSender(config);
+  const verificationCodeGenerator = options.verificationCodeGenerator ?? generateVerificationCode;
+  const verificationCodeTtlMs = options.verificationCodeTtlMs ?? DEFAULT_VERIFICATION_CODE_TTL_MS;
+  const now = options.now ?? (() => new Date());
   const reviewGenerator = options.reviewGenerator ?? createReviewGenerator(createDeepSeekClient({
     apiKey: config.deepSeekApiKey,
     baseUrl: config.deepSeekBaseUrl,
@@ -95,13 +135,57 @@ export function createApp(options: AppOptions = {}) {
     service: "cnki-literature-review-api"
   }));
 
+  app.post("/auth/verification-code", async (request, reply) => {
+    const parsed = emailSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "INVALID_REQUEST" });
+    }
+    if (!emailSender) {
+      return reply.code(503).send({ error: "EMAIL_SENDER_NOT_CONFIGURED" });
+    }
+
+    const email = normalizeEmail(parsed.data.email);
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return reply.code(409).send({ error: "EMAIL_ALREADY_REGISTERED" });
+    }
+
+    const code = verificationCodeGenerator();
+    const currentTime = now();
+    await cleanupExpiredVerificationCodes(prisma, currentTime);
+    await saveVerificationCode(
+      prisma,
+      email,
+      hashVerificationCode(email, code, jwtSecret),
+      new Date(currentTime.getTime() + verificationCodeTtlMs)
+    );
+    await emailSender.sendVerificationCode(email, code);
+    request.log.info({ email }, "verification_code_sent");
+
+    return { ok: true };
+  });
+
   app.post("/auth/register", async (request, reply) => {
-    const parsed = credentialsSchema.safeParse(request.body);
+    const parsed = registrationSchema.safeParse(request.body);
     if (!parsed.success) {
       return reply.code(400).send({ error: "INVALID_REQUEST" });
     }
 
     const email = normalizeEmail(parsed.data.email);
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return reply.code(409).send({ error: "EMAIL_ALREADY_REGISTERED" });
+    }
+
+    const verificationCode = await findLatestVerificationCode(prisma, email);
+    if (!verificationCode || new Date(verificationCode.expiresAt).getTime() < now().getTime()) {
+      return reply.code(400).send({ error: "INVALID_VERIFICATION_CODE" });
+    }
+    const codeHash = hashVerificationCode(email, parsed.data.verificationCode, jwtSecret);
+    if (codeHash !== verificationCode.codeHash) {
+      return reply.code(400).send({ error: "INVALID_VERIFICATION_CODE" });
+    }
+
     const passwordHash = await hashPassword(parsed.data.password);
 
     try {
@@ -113,6 +197,7 @@ export function createApp(options: AppOptions = {}) {
           deepReviewQuota: STARTER_DEEP_REVIEW_QUOTA
         }
       });
+      await consumeVerificationCode(prisma, verificationCode.id);
       return reply.code(201).send({
         token: signAuthToken({ userId: user.id }, jwtSecret),
         user: serializeUser(user)
