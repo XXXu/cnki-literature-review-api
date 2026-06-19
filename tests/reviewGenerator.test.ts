@@ -49,7 +49,9 @@ describe("review generator", () => {
     const prompt = collectPrompt(messages);
     expect(prompt).toContain("PDF 全文");
     expect(prompt).toContain("已有研究贡献");
-    expect(prompt).toContain("已有研究贡献应基于 PDF 全文和摘要中的证据归纳");
+    expect(prompt).toContain("PDF 全文生成深度综述素材");
+    expect(prompt).toContain("题录、摘要或关键词，可以作为辅助信息参考");
+    expect(prompt).toContain("已有研究贡献应优先基于 PDF 全文中的证据归纳");
     expect(prompt).toContain(bilingualInstruction);
     expect(prompt).toContain("专业术语、理论名称、模型名称和变量名称应保留英文原文");
   });
